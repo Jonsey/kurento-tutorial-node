@@ -45,7 +45,7 @@ var app = express();
 var idCounter = 0;
 var candidatesQueue = {};
 var kurentoClient = null;
-var presenter = null;
+var presenters = [];
 var viewers = [];
 var noPresenterMessage = 'No active presenter. Try again later...';
 
@@ -93,39 +93,40 @@ wss.on('connection', function(ws) {
 
         switch (message.id) {
         case 'presenter':
-			startPresenter(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
-				if (error) {
-					return ws.send(JSON.stringify({
-						id : 'presenterResponse',
-						response : 'rejected',
-						message : error
-					}));
-				}
-				ws.send(JSON.stringify({
-					id : 'presenterResponse',
-					response : 'accepted',
-					sdpAnswer : sdpAnswer
-				}));
-			});
-			break;
+    			startPresenter(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
+    				if (error) {
+    					return ws.send(JSON.stringify({
+    						id : 'presenterResponse',
+    						response : 'rejected',
+    						message : error
+    					}));
+    				}
+    				ws.send(JSON.stringify({
+    					id : 'presenterResponse',
+    					response : 'accepted',
+              sessionId : sessionId,
+    					sdpAnswer : sdpAnswer
+    				}));
+    			});
+    			break;
 
         case 'viewer':
-			startViewer(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
-				if (error) {
-					return ws.send(JSON.stringify({
-						id : 'viewerResponse',
-						response : 'rejected',
-						message : error
-					}));
-				}
+    			startViewer(sessionId, ws, message.sdpOffer, message.sessionId, function(error, sdpAnswer) {
+    				if (error) {
+    					return ws.send(JSON.stringify({
+    						id : 'viewerResponse',
+    						response : 'rejected',
+    						message : error
+    					}));
+    				}
 
-				ws.send(JSON.stringify({
-					id : 'viewerResponse',
-					response : 'accepted',
-					sdpAnswer : sdpAnswer
-				}));
-			});
-			break;
+    				ws.send(JSON.stringify({
+    					id : 'viewerResponse',
+    					response : 'accepted',
+    					sdpAnswer : sdpAnswer
+    				}));
+    			});
+    			break;
 
         case 'stop':
             stop(sessionId);
@@ -170,16 +171,18 @@ function getKurentoClient(callback) {
 function startPresenter(sessionId, ws, sdpOffer, callback) {
 	clearCandidatesQueue(sessionId);
 
-	if (presenter !== null) {
+	if (presenters[sessionId] !== null) {
 		stop(sessionId);
-		return callback("Another user is currently acting as presenter. Try again later ...");
+		return callback("Presenter already connected and presenting. Session stopped.");
 	}
 
-	presenter = {
+	var presenter = {
 		id : sessionId,
 		pipeline : null,
 		webRtcEndpoint : null
 	}
+
+  presenters[sessionId] = presenter
 
 	getKurentoClient(function(error, kurentoClient) {
 		if (error) {
@@ -257,13 +260,15 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 	});
 }
 
-function startViewer(sessionId, ws, sdpOffer, callback) {
+function startViewer(sessionId, ws, sdpOffer, presenterSessionId, callback) {
 	clearCandidatesQueue(sessionId);
 
-	if (presenter === null) {
+	if (presenters[presenterSessionId] === null) {
 		stop(sessionId);
 		return callback(noPresenterMessage);
 	}
+
+  var presenter = presenters[presenterSessionId]
 
 	presenter.pipeline.create('WebRtcEndpoint', function(error, webRtcEndpoint) {
 		if (error) {
@@ -334,7 +339,7 @@ function clearCandidatesQueue(sessionId) {
 }
 
 function stop(sessionId) {
-	if (presenter !== null && presenter.id == sessionId) {
+	if (presenters[sessionId]) {
 		for (var i in viewers) {
 			var viewer = viewers[i];
 			if (viewer.ws) {
@@ -343,9 +348,9 @@ function stop(sessionId) {
 				}));
 			}
 		}
-		presenter.pipeline.release();
-		presenter = null;
-		viewers = [];
+		presenters[sessionId].pipeline.release();
+    delete presenters[sessionId];
+		// viewers = [];  TODO: Maybe link viewers to a presenter
 
 	} else if (viewers[sessionId]) {
 		viewers[sessionId].webRtcEndpoint.release();
