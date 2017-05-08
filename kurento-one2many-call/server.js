@@ -173,8 +173,8 @@ function startPresenter(sessionId, ws, sdpOffer, callback) {
 
   console.log("Presenter starting")
 
-	if (presenters[sessionId] !== null) {
-    console.log("Presenter not in list of presenters")
+	if (presenters[sessionId]) {
+    console.log("Presenter is in list of presenters")
 		stop(sessionId);
 		return callback("Presenter already connected and presenting. Session stopped.");
 	}
