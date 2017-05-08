@@ -359,7 +359,7 @@ function stop(sessionId) {
 
 	clearCandidatesQueue(sessionId);
 
-	if (viewers.length < 1 && !presenter) {
+	if (viewers.length < 1 && presenters.length < 1) {
         console.log('Closing kurento client');
         kurentoClient.close();
         kurentoClient = null;
