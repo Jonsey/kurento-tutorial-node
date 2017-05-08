@@ -372,9 +372,9 @@ function stop(sessionId) {
 function onIceCandidate(sessionId, _candidate) {
     var candidate = kurento.getComplexType('IceCandidate')(_candidate);
 
-    if (presenter && presenter.id === sessionId && presenter.webRtcEndpoint) {
+    if (presenters[sessionId] && presenters[sessionId].id === sessionId && presenters[sessionId].webRtcEndpoint) {
         console.info('Sending presenter candidate');
-        presenter.webRtcEndpoint.addIceCandidate(candidate);
+        presenters[sessionId].webRtcEndpoint.addIceCandidate(candidate);
     }
     else if (viewers[sessionId] && viewers[sessionId].webRtcEndpoint) {
         console.info('Sending viewer candidate');
